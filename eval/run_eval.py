@@ -42,10 +42,27 @@ def post_json(url: str, payload: dict) -> dict:
         with urllib.request.urlopen(request, timeout=120) as response:
             return json.load(response)
     except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", "replace")
-        raise SystemExit(f"Error HTTP {exc.code} en {url}: {body}") from exc
+        raise ApiError(exc.code, exc.read().decode("utf-8", "replace")) from exc
     except urllib.error.URLError as exc:
         raise SystemExit(f"No se pudo conectar con {url}: {exc.reason}") from exc
+
+
+class ApiError(Exception):
+    def __init__(self, status: int, body: str) -> None:
+        super().__init__(f"HTTP {status}: {body}")
+        self.status = status
+
+
+def ask_with_retry(url: str, payload: dict, attempts: int = 4, wait_s: float = 8.0) -> dict:
+    """Reintenta errores 5xx (p. ej. fallos transitorios del proveedor de IA)."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return post_json(url, payload)
+        except ApiError as exc:
+            if exc.status < 500 or attempt == attempts:
+                raise
+            time.sleep(wait_s)
+    raise AssertionError("inalcanzable")
 
 
 def _matches(source: dict, expected: dict) -> bool:
@@ -70,11 +87,33 @@ def keyword_recall(answer: str, keywords: list[str]) -> float:
     return sum(fold(k) in folded for k in keywords) / len(keywords)
 
 
+def _error_row(item: dict, error: str) -> dict:
+    row = {
+        "id": item["id"],
+        "type": item["type"],
+        "question": item["question"],
+        "answer": "",
+        "grounded": False,
+        "sources": [],
+        "latency_ms": 0,
+        "error": error,
+        "passed": False,
+    }
+    if item["type"] == "unanswerable":
+        row["correct_refusal"] = False
+    else:
+        row.update(source_hit=False, keyword_recall=0.0)
+    return row
+
+
 def evaluate(item: dict, base_url: str, session_id: str) -> dict:
     started = time.perf_counter()
-    response = post_json(
-        f"{base_url}/ask", {"question": item["question"], "session_id": session_id}
-    )
+    try:
+        response = ask_with_retry(
+            f"{base_url}/ask", {"question": item["question"], "session_id": session_id}
+        )
+    except ApiError as exc:  # el error se registra: no debe tumbar toda la evaluación
+        return _error_row(item, str(exc))
     latency_ms = round((time.perf_counter() - started) * 1000)
 
     row = {
@@ -112,6 +151,7 @@ def summarize(rows: list[dict]) -> dict:
     return {
         "total": len(rows),
         "passed": sum(r["passed"] for r in rows),
+        "errors": sum("error" in r for r in rows),
         "answerable_source_hit_rate": rate(answerable, "source_hit"),
         "answerable_mean_keyword_recall": (
             round(sum(r["keyword_recall"] for r in answerable) / len(answerable), 2)
@@ -144,7 +184,9 @@ def main() -> int:
         mark = "OK  " if row["passed"] else "FAIL"
         head = f'[{mark}] {row["id"]:<4} {row["type"]:<13} {row["latency_ms"]:>5} ms'
         print(f'{head}  {row["question"]}')
-        if not row["passed"]:
+        if "error" in row:
+            print(f'       -> ERROR de la API: {row["error"][:200]}')
+        elif not row["passed"]:
             print(f'       -> grounded={row["grounded"]} fuentes={row["sources"]}')
             print(f'       -> {row["answer"][:160]}')
 

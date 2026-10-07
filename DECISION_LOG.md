@@ -174,15 +174,40 @@ fáciles; `rate limiting` por sesión/IP; la puerta de relevancia ya evita llama
 
 ## 11. Arquitectura
 
-Capas con dependencias hacia el dominio (`app/`):
+**Arquitectura hexagonal (puertos y adaptadores)**, con la regla de dependencias de Clean
+Architecture: las dependencias apuntan siempre hacia el dominio.
 
 ```
-api/        routers FastAPI, esquemas Pydantic, mapeo de errores   ─┐
-services/   IngestionService, RAGService, chunking, prompts        ─┼─► dependen de domain/
-infra/      OpenAI, pgvector/Postgres, pypdf                       ─┘   (implementan sus puertos)
-domain/     modelos, errores y puertos (Protocols)
-container.py  composition root: único sitio que elige implementaciones
+              ┌──────────── núcleo (sin frameworks ni proveedores) ────────────┐
+ adaptador    │  services/  casos de uso: IngestionService, RAGService         │   adaptadores
+ de entrada ──►  (chunking, prompts)                                           ◄── de salida
+ api/ (FastAPI)│        │ usa                                                  │   infra/ (OpenAI,
+              │  domain/  modelos, errores y PUERTOS (Protocols)              │   pgvector, pypdf)
+              └────────────────────────────────────────────────────────────────┘
+ container.py = composition root: único sitio que elige y conecta implementaciones
 ```
+
+| Concepto hexagonal | En este proyecto |
+|---|---|
+| Núcleo / dominio | `app/domain` (modelos, errores) |
+| Casos de uso (aplicación) | `app/services` |
+| Puertos de salida | `domain/ports.py`: `Embedder`, `LLMProvider`, `KnowledgeStore`, `ChatHistory` |
+| Adaptadores de salida | `app/infra`: OpenAI, Postgres/pgvector, pypdf |
+| Adaptador de entrada | `app/api` (FastAPI) |
+| Inyección de dependencias | `app/container.py` |
+
+**La regla se hace cumplir con una prueba** (`tests/test_architecture.py`): `domain` no importa
+nada de `app` salvo `domain`; `services` solo importa `domain`; y ni `domain` ni `services`
+pueden importar `fastapi`, `openai`, `sqlalchemy`, `asyncpg`, `pypdf` ni `pydantic`. Si alguien
+rompe la separación, el CI falla.
+
+**Por qué no una estructura "Clean" canónica** (`entities/ use_cases/ interface_adapters/
+frameworks/`): con tres casos de uso, renombrar capas no aporta aislamiento adicional (ya está
+logrado) y sí añade ceremonia. Lo que sí hay: puertos explícitos, núcleo puro y verificable.
+*Compromiso conocido:* no hay puertos de **entrada** formales (la API llama directamente a las
+clases de servicio); lo introduciría si hubiera varios adaptadores de entrada (CLI, cola de
+mensajes, gRPC). También hay lógica de dominio pura (RRF, validación de citas) dentro de
+`services/rag.py`; la extraería a `domain/` si crece.
 
 - `RAGService` solo conoce los Protocols `Embedder`, `LLMProvider`, `KnowledgeStore` y
   `ChatHistory`. Cambiar de OpenAI a otro proveedor, o de pgvector a Qdrant, es escribir un
