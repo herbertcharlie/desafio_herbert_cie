@@ -9,6 +9,7 @@ Cada chunk recuerda la página donde empieza y donde termina, base de la trazabi
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Sequence
 
 from app.domain.models import ChunkDraft, PageText
@@ -21,8 +22,12 @@ Unit = tuple[int, str]  # (número de página, texto de la oración)
 
 
 def normalize_text(text: str) -> str:
-    """Une palabras cortadas por guion de fin de línea y colapsa espacios/saltos."""
-    text = text.replace("­", "")
+    """Une palabras cortadas por guion de fin de línea y colapsa espacios/saltos.
+
+    NFKC deshace ligaduras tipográficas (ﬁ, ﬂ...) que algunos PDF usan y que romperían la
+    búsqueda léxica ("deﬁnición" no coincidiría con "definición").
+    """
+    text = unicodedata.normalize("NFKC", text).replace("­", "")
     text = _HYPHEN_BREAK.sub(r"\1\2", text)
     return _WHITESPACE.sub(" ", text).strip()
 

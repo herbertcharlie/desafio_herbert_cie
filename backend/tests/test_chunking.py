@@ -16,6 +16,10 @@ def test_normalize_joins_hyphenated_words_and_collapses_whitespace():
     assert normalize_text("auto-\norganizado   equipo\n\nágil") == "autoorganizado equipo ágil"
 
 
+def test_normalize_expands_typographic_ligatures():
+    assert normalize_text("la deﬁnición y el ﬂujo") == "la definición y el flujo"
+
+
 def test_empty_pages_produce_no_chunks():
     assert chunk_pages(pages_of("", "   \n "), size=200, overlap=40) == []
 

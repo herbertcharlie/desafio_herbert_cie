@@ -21,17 +21,37 @@ from app.domain.errors import (
 from app.domain.models import LLMResponse
 
 
+def _provider_message(exc: openai.OpenAIError) -> str:
+    body = getattr(exc, "body", None)
+    message = body.get("message") if isinstance(body, dict) else None
+    return str(message or exc)
+
+
+def _provider_code(exc: openai.OpenAIError) -> str | None:
+    body = getattr(exc, "body", None)
+    return body.get("code") if isinstance(body, dict) else None
+
+
 @contextmanager
 def _translate_errors() -> Iterator[None]:
     try:
         yield
     except openai.APITimeoutError as exc:
         raise UpstreamTimeoutError("El proveedor de IA tardó demasiado en responder.") from exc
-    except (openai.AuthenticationError, openai.PermissionDeniedError) as exc:
-        raise ConfigurationError(
-            "La credencial de OpenAI es inválida o no tiene permisos."
-        ) from exc
-    except openai.OpenAIError as exc:  # rate limit, conexión, 5xx, 4xx restantes
+    except openai.AuthenticationError as exc:
+        raise ConfigurationError("La credencial de OpenAI es inválida.") from exc
+    except openai.PermissionDeniedError as exc:
+        raise ConfigurationError(f"OpenAI denegó el acceso: {_provider_message(exc)}") from exc
+    except openai.RateLimitError as exc:
+        if (
+            _provider_code(exc) == "insufficient_quota"
+            or "credit" in _provider_message(exc).lower()
+        ):
+            raise ConfigurationError(
+                "La cuenta de OpenAI no tiene crédito o cuota disponible."
+            ) from exc
+        raise UpstreamUnavailableError("OpenAI limitó la tasa de peticiones; reintenta.") from exc
+    except openai.OpenAIError as exc:  # conexión, 5xx, 4xx restantes
         raise UpstreamUnavailableError("El proveedor de IA no está disponible ahora.") from exc
 
 
