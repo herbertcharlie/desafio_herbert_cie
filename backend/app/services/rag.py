@@ -31,9 +31,10 @@ SNIPPET_CHARS = 400
 @dataclass(frozen=True)
 class RAGConfig:
     candidates: int = 10
-    context_top_k: int = 5
+    context_top_k: int = 6
     min_similarity: float = 0.30
     hybrid: bool = True
+    vector_anchor: int = 2  # mejores resultados vectoriales que siempre entran al contexto
     max_llm_concurrency: int = 4
 
 
@@ -55,6 +56,24 @@ def reciprocal_rank_fusion(*rankings: Sequence[RetrievedChunk]) -> list[Retrieve
             if current is None or (current.similarity is None and chunk.similarity is not None):
                 best[chunk.id] = chunk
     return [best[cid] for cid in sorted(scores, key=scores.__getitem__, reverse=True)]
+
+
+def select_context(
+    vector_hits: Sequence[RetrievedChunk],
+    lexical_hits: Sequence[RetrievedChunk],
+    top_k: int,
+    anchor: int,
+) -> list[RetrievedChunk]:
+    """Elige los fragmentos que verá el LLM: híbrido anclado en el retriever vectorial.
+
+    Los `anchor` mejores resultados vectoriales entran siempre; el resto de plazas se rellena
+    con el orden RRF. Sin el ancla, una búsqueda léxica poco selectiva (muchas palabras
+    genéricas) da doble voto a fragmentos mediocres y desplaza al mejor resultado vectorial.
+    """
+    anchored = list(vector_hits[: min(anchor, top_k)])
+    taken = {chunk.id for chunk in anchored}
+    rest = [c for c in reciprocal_rank_fusion(vector_hits, lexical_hits) if c.id not in taken]
+    return (anchored + rest)[:top_k]
 
 
 def parse_llm_answer(raw: str) -> _Parsed:
@@ -110,7 +129,7 @@ class RAGService:
             logger.info("Rechazo por baja similitud (best=%s)", best_similarity)
             return self._refusal(started, retrieval_ms, len(vector_hits), best_similarity)
 
-        context = reciprocal_rank_fusion(vector_hits, lexical_hits)[: cfg.context_top_k]
+        context = select_context(vector_hits, lexical_hits, cfg.context_top_k, cfg.vector_anchor)
 
         # 3) Generación (acotada por semáforo)
         generation_started = time.perf_counter()

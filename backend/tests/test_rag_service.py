@@ -9,6 +9,7 @@ from app.services.rag import (
     RAGService,
     parse_llm_answer,
     reciprocal_rank_fusion,
+    select_context,
 )
 from tests.fakes import FakeEmbedder, FakeHistory, FakeLLM, FakeStore, make_chunk
 
@@ -130,6 +131,28 @@ async def test_llm_concurrency_is_bounded_by_semaphore():
     await asyncio.gather(*(service.ask(f"pregunta {i}", "s1") for i in range(8)))
     assert len(llm.calls) == 8
     assert llm.max_active == 2
+
+
+def test_noisy_lexical_hits_cannot_push_top_vector_results_out_of_context():
+    """Regresión: un léxico poco selectivo daba doble voto a fragmentos mediocres (q02)."""
+    vector = [make_chunk(f"v{i}", similarity=0.8 - i * 0.01) for i in range(10)]
+    lexical = [vector[i] for i in (2, 3, 4, 5, 6)]  # solapa con los puestos 3-7 del vectorial
+    # Sin ancla, RRF deja fuera al mejor y segundo resultado vectorial.
+    unanchored = select_context(vector, lexical, top_k=5, anchor=0)
+    assert vector[0].id not in {c.id for c in unanchored}
+    anchored = select_context(vector, lexical, top_k=5, anchor=2)
+    assert [c.id for c in anchored[:2]] == [vector[0].id, vector[1].id]
+    assert len(anchored) == 5 and len({c.id for c in anchored}) == 5
+
+
+def test_select_context_without_lexical_hits_is_the_vector_ranking():
+    vector = [make_chunk(f"v{i}") for i in range(6)]
+    assert select_context(vector, [], top_k=4, anchor=2) == vector[:4]
+
+
+def test_anchor_is_capped_by_top_k():
+    vector = [make_chunk(f"v{i}") for i in range(6)]
+    assert len(select_context(vector, [], top_k=2, anchor=5)) == 2
 
 
 def test_rrf_prefers_items_ranked_high_in_both_lists():

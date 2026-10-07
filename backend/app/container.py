@@ -60,6 +60,7 @@ def build_services(settings: Settings) -> Services:
                 context_top_k=settings.context_top_k,
                 min_similarity=settings.min_similarity,
                 hybrid=settings.hybrid_search,
+                vector_anchor=settings.vector_anchor,
                 max_llm_concurrency=settings.llm_max_concurrency,
             ),
         ),

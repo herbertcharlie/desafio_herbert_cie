@@ -32,9 +32,10 @@ class Settings(BaseSettings):
 
     # Recuperación y grounding
     retrieval_candidates: int = 10  # candidatos por cada método (vectorial y léxico)
-    context_top_k: int = 5  # fragmentos que se envían al LLM
+    context_top_k: int = 6  # fragmentos que se envían al LLM
     min_similarity: float = 0.30  # por debajo, no se llama al LLM
     hybrid_search: bool = True
+    vector_anchor: int = Field(default=2, ge=0)  # top vectoriales que siempre van al contexto
 
     # Entrada
     max_question_chars: int = 1000
