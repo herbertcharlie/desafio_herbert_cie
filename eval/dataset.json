@@ -1,0 +1,158 @@
+{
+  "description": "Dataset de evaluación del RAG sobre la Guía Scrum 2020 (es-LATAM) y la Guía Kanban 2020 (es). Las páginas son las del PDF físico (la numeración impresa de la Guía Scrum va desplazada en 1). Tipos: direct (respuesta en un fragmento), multi_chunk (requiere combinar fragmentos o documentos), unanswerable (no está en los documentos: se espera rechazo explícito).",
+  "documents": ["scrum-guide-2020-es", "kanban-guide-2020-es"],
+  "questions": [
+    {
+      "id": "q01",
+      "type": "direct",
+      "question": "¿Cuál es la duración máxima de un Sprint?",
+      "expected_answer": "Los Sprints son eventos de duración fija de un mes o menos.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [8]}],
+      "keywords": ["mes"]
+    },
+    {
+      "id": "q02",
+      "type": "direct",
+      "question": "¿Cuánto dura la Daily Scrum y quiénes participan?",
+      "expected_answer": "Es un evento de 15 minutos para los Developers del Scrum Team.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [10]}],
+      "keywords": ["15", "Developers"]
+    },
+    {
+      "id": "q03",
+      "type": "direct",
+      "question": "¿Quién tiene la autoridad para cancelar un Sprint y cuándo puede hacerse?",
+      "expected_answer": "Solo el Product Owner, si el Objetivo del Sprint se vuelve obsoleto.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [9]}],
+      "keywords": ["Product Owner", "obsoleto"]
+    },
+    {
+      "id": "q04",
+      "type": "direct",
+      "question": "¿Cuáles son los cinco valores de Scrum?",
+      "expected_answer": "Compromiso, Foco, Franqueza, Respeto y Coraje.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [5]}],
+      "keywords": ["Compromiso", "Foco", "Franqueza", "Respeto", "Coraje"]
+    },
+    {
+      "id": "q05",
+      "type": "direct",
+      "question": "¿Cuál es el límite de tiempo máximo de la Sprint Planning para un Sprint de un mes?",
+      "expected_answer": "Un máximo de ocho horas.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [10]}],
+      "keywords": ["ocho"]
+    },
+    {
+      "id": "q06",
+      "type": "direct",
+      "question": "¿Qué compromiso tiene cada artefacto de Scrum?",
+      "expected_answer": "Product Backlog: Objetivo del Producto; Sprint Backlog: Objetivo del Sprint; Increment: Definición de Terminado.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [11, 12, 13]}],
+      "keywords": ["Objetivo del Producto", "Objetivo del Sprint", "Definición de Terminado"]
+    },
+    {
+      "id": "q07",
+      "type": "direct",
+      "question": "¿Cuáles son las cuatro métricas de flujo obligatorias de Kanban?",
+      "expected_answer": "WIP, Throughput, Work Item Age y Cycle Time.",
+      "expected_sources": [{"document": "kanban-guide-2020-es", "pages": [6]}],
+      "keywords": ["WIP", "Throughput", "Work Item Age", "Cycle Time"]
+    },
+    {
+      "id": "q08",
+      "type": "direct",
+      "question": "¿Qué es la Expectativa de Nivel de Servicio (SLE) y de qué partes se compone?",
+      "expected_answer": "Un pronóstico de cuánto debería tardar un elemento de trabajo en fluir de Iniciado a Finalizado; tiene un período de tiempo y una probabilidad asociada.",
+      "expected_sources": [{"document": "kanban-guide-2020-es", "pages": [5]}],
+      "keywords": ["pronóstico", "probabilidad"]
+    },
+    {
+      "id": "q09",
+      "type": "direct",
+      "question": "¿Por qué controlar el WIP crea un sistema pull en Kanban?",
+      "expected_answer": "Porque los miembros solo comienzan (arrastran) un nuevo elemento cuando hay una señal clara de capacidad, es decir, cuando el WIP cae por debajo del límite.",
+      "expected_sources": [{"document": "kanban-guide-2020-es", "pages": [5]}],
+      "keywords": ["límite", "capacidad"]
+    },
+    {
+      "id": "q10",
+      "type": "multi_chunk",
+      "question": "¿Qué hace el Scrum Master por el Scrum Team, por el Product Owner y por la organización?",
+      "expected_answer": "Con el equipo: guía la autogestión, ayuda a crear Increments que cumplan la Definición de Terminado, elimina impedimentos y asegura eventos productivos. Con el PO: ayuda con Objetivos del Producto y gestión del Product Backlog. Con la organización: lidera la adopción de Scrum y elimina barreras con los interesados.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [7, 8]}],
+      "keywords": ["impedimentos", "Product Backlog", "adopción"]
+    },
+    {
+      "id": "q11",
+      "type": "multi_chunk",
+      "question": "¿Cuáles son los límites de tiempo de la Sprint Planning, la Sprint Review y la Sprint Retrospective en un Sprint de un mes?",
+      "expected_answer": "Sprint Planning: máximo ocho horas; Sprint Review: máximo cuatro horas; Sprint Retrospective: máximo tres horas.",
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [10, 11]}],
+      "keywords": ["ocho", "cuatro", "tres"]
+    },
+    {
+      "id": "q12",
+      "type": "multi_chunk",
+      "question": "¿Qué dicen la Guía Scrum y la Guía Kanban sobre implementar solo una parte del marco o de las prácticas?",
+      "expected_answer": "Ambas lo consideran inmutable: se pueden implementar solo partes, pero el resultado ya no es Scrum / Kanban.",
+      "expected_sources": [
+        {"document": "scrum-guide-2020-es", "pages": [14]},
+        {"document": "kanban-guide-2020-es", "pages": [7]}
+      ],
+      "require_all_sources": true,
+      "keywords": ["inmutable", "Scrum", "Kanban"]
+    },
+    {
+      "id": "q13",
+      "type": "multi_chunk",
+      "question": "¿Qué base teórica comparten Scrum y Kanban?",
+      "expected_answer": "Ambos se apoyan en el pensamiento Lean (Scrum además en el empirismo; Kanban en la teoría de flujo).",
+      "expected_sources": [
+        {"document": "scrum-guide-2020-es", "pages": [4]},
+        {"document": "kanban-guide-2020-es", "pages": [2]}
+      ],
+      "require_all_sources": true,
+      "keywords": ["Lean"]
+    },
+    {
+      "id": "q14",
+      "type": "unanswerable",
+      "question": "¿Cuál es el salario promedio de un Scrum Master en Perú?",
+      "expected_answer": null,
+      "expected_sources": [],
+      "notes": "Tema relacionado pero ausente de los documentos."
+    },
+    {
+      "id": "q15",
+      "type": "unanswerable",
+      "question": "¿Qué es SAFe y cuántos niveles tiene?",
+      "expected_answer": null,
+      "expected_sources": [],
+      "notes": "Marco ágil no mencionado en las guías."
+    },
+    {
+      "id": "q16",
+      "type": "unanswerable",
+      "question": "¿Cómo se calculan los story points y cuánto vale un punto de historia?",
+      "expected_answer": null,
+      "expected_sources": [],
+      "notes": "Difícil: cercano al tema (dimensionamiento del Product Backlog) pero los story points no se definen."
+    },
+    {
+      "id": "q17",
+      "type": "unanswerable",
+      "question": "¿Cuánto cuesta la certificación PSM I de Scrum.org?",
+      "expected_answer": null,
+      "expected_sources": [],
+      "notes": "Dato comercial ajeno a las guías."
+    },
+    {
+      "id": "q18",
+      "type": "unanswerable",
+      "question": "¿Cuál es la capital de Francia?",
+      "expected_answer": null,
+      "expected_sources": [],
+      "notes": "Pregunta totalmente fuera de dominio."
+    }
+  ]
+}

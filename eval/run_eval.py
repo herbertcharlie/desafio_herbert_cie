@@ -48,15 +48,19 @@ def post_json(url: str, payload: dict) -> dict:
         raise SystemExit(f"No se pudo conectar con {url}: {exc.reason}") from exc
 
 
-def source_hit(sources: list[dict], expected: list[dict]) -> bool:
-    """True si alguna fuente citada coincide en documento y solapa alguna página esperada."""
-    for source in sources:
-        for exp in expected:
-            same_doc = fold(exp["document"]) in fold(source["filename"])
-            pages = set(range(source["page_start"], source["page_end"] + 1))
-            if same_doc and pages & set(exp["pages"]):
-                return True
-    return False
+def _matches(source: dict, expected: dict) -> bool:
+    same_doc = fold(expected["document"]) in fold(source["filename"])
+    pages = set(range(source["page_start"], source["page_end"] + 1))
+    return same_doc and bool(pages & set(expected["pages"]))
+
+
+def source_hit(sources: list[dict], expected: list[dict], require_all: bool = False) -> bool:
+    """Una fuente citada coincide en documento y solapa una página esperada.
+
+    Con `require_all` (preguntas que combinan documentos) cada fuente esperada debe estar cubierta.
+    """
+    covered = [any(_matches(s, exp) for s in sources) for exp in expected]
+    return all(covered) if require_all else any(covered)
 
 
 def keyword_recall(answer: str, keywords: list[str]) -> float:
@@ -89,7 +93,9 @@ def evaluate(item: dict, base_url: str, session_id: str) -> dict:
         row["passed"] = row["correct_refusal"]
     else:
         row["source_hit"] = response["grounded"] and source_hit(
-            response["sources"], item["expected_sources"]
+            response["sources"],
+            item["expected_sources"],
+            require_all=item.get("require_all_sources", False),
         )
         row["keyword_recall"] = round(keyword_recall(response["answer"], item["keywords"]), 2)
         row["passed"] = bool(row["source_hit"]) and row["keyword_recall"] >= 0.5

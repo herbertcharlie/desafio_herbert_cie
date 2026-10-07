@@ -14,6 +14,18 @@ def test_source_hit_requires_same_document_and_overlapping_page():
     assert not source_hit(sources, [{"document": "otro", "pages": [3]}])
 
 
+def test_require_all_needs_every_expected_document():
+    sources = [{"filename": "scrum-guide-2020-es.pdf", "page_start": 14, "page_end": 14}]
+    expected = [
+        {"document": "scrum-guide-2020-es", "pages": [14]},
+        {"document": "kanban-guide-2020-es", "pages": [7]},
+    ]
+    assert source_hit(sources, expected)
+    assert not source_hit(sources, expected, require_all=True)
+    sources.append({"filename": "kanban-guide-2020-es.pdf", "page_start": 7, "page_end": 7})
+    assert source_hit(sources, expected, require_all=True)
+
+
 def test_keyword_recall_is_fraction_of_found_keywords():
     assert keyword_recall("El Sprint dura un mes", ["sprint", "mes", "semana"]) == 2 / 3
     assert keyword_recall("lo que sea", []) == 1.0
