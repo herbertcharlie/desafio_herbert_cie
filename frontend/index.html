@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enterprise RAG Assistant</title>
+  <style>
+    :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e2e5ec;
+            --accent:#2f5bea; --ok:#1c7c4d; --warn:#b4571b; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+    header { padding:14px 24px; background:var(--card); border-bottom:1px solid var(--line); }
+    header h1 { margin:0; font-size:18px; }
+    header small { color:var(--muted); }
+    main { display:grid; grid-template-columns: 320px 1fr; gap:16px; padding:16px 24px; max-width:1200px; margin:0 auto; }
+    @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+    section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+    h2 { margin:0 0 10px; font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 14px; cursor:pointer; font:inherit; }
+    button:disabled { opacity:.5; cursor:default; }
+    button.ghost { background:transparent; color:var(--muted); border:1px solid var(--line); padding:3px 8px; font-size:12px; }
+    input[type=text] { flex:1; padding:9px 10px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+    ul { list-style:none; margin:10px 0 0; padding:0; }
+    li.doc { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:6px 0; border-top:1px solid var(--line); font-size:13px; }
+    li.doc span small { color:var(--muted); display:block; }
+    #status { font-size:13px; color:var(--muted); margin-top:8px; min-height:20px; }
+    #status.error { color:var(--warn); }
+    #chat { display:flex; flex-direction:column; gap:12px; min-height:360px; max-height:62vh; overflow:auto; padding-bottom:8px; }
+    .msg { padding:10px 12px; border-radius:8px; border:1px solid var(--line); white-space:pre-wrap; }
+    .q { background:#eef2ff; align-self:flex-end; max-width:85%; }
+    .a { background:#fff; }
+    .a.ungrounded { border-color:#f0c8a8; background:#fff8f2; }
+    .badge { display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; margin-bottom:6px; }
+    .badge.ok { background:#e3f4ea; color:var(--ok); }
+    .badge.no { background:#fde8d8; color:var(--warn); }
+    .sources { margin-top:8px; font-size:12.5px; color:var(--muted); white-space:normal; }
+    .sources details { margin-top:4px; }
+    .sources summary { cursor:pointer; color:var(--ink); }
+    .meta { margin-top:6px; font-size:11.5px; color:var(--muted); }
+    form#ask { display:flex; gap:8px; margin-top:10px; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Enterprise RAG Assistant <small>· pregunta a tus PDFs con fuentes verificables</small></h1>
+  </header>
+  <main>
+    <section>
+      <h2>Documentos</h2>
+      <div class="row">
+        <input id="file" type="file" accept="application/pdf" multiple />
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="upload">Cargar PDF(s)</button>
+      </div>
+      <div id="status"></div>
+      <ul id="docs"></ul>
+      <p style="font-size:12px;color:var(--muted)">Sesión: <code id="sid"></code>
+        <button class="ghost" id="newSession">Nueva</button></p>
+    </section>
+
+    <section>
+      <h2>Consulta</h2>
+      <div id="chat"></div>
+      <form id="ask">
+        <input id="question" type="text" maxlength="1000" placeholder="Escribe tu pregunta..." autocomplete="off" required />
+        <button id="send" type="submit">Preguntar</button>
+      </form>
+    </section>
+  </main>
+
+<script>
+const API = "/api";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function newSessionId() { return "s-" + Math.random().toString(36).slice(2, 10); }
+let sessionId = localStorage.getItem("rag_session") || newSessionId();
+localStorage.setItem("rag_session", sessionId);
+$("sid").textContent = sessionId;
+
+function setStatus(text, isError = false) {
+  $("status").textContent = text;
+  $("status").className = isError ? "error" : "";
+}
+
+async function api(path, options) {
+  const res = await fetch(API + path, options);
+  if (res.status === 204) return null;
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error?.message || `Error HTTP ${res.status}`);
+  return body;
+}
+
+async function loadDocs() {
+  try {
+    const docs = await api("/documents");
+    $("docs").innerHTML = docs.map((d) =>
+      `<li class="doc"><span>${esc(d.filename)}<small>${d.pages} págs · ${d.chunk_count} chunks</small></span>
+       <button class="ghost" data-id="${d.id}">Borrar</button></li>`).join("") ||
+      '<li style="color:var(--muted);font-size:13px">Aún no hay documentos.</li>';
+  } catch (e) { setStatus(e.message, true); }
+}
+
+$("docs").addEventListener("click", async (ev) => {
+  const id = ev.target.dataset?.id;
+  if (!id || !confirm("¿Borrar este documento y sus fragmentos?")) return;
+  try { await api("/documents/" + id, { method: "DELETE" }); await loadDocs(); }
+  catch (e) { setStatus(e.message, true); }
+});
+
+$("upload").addEventListener("click", async () => {
+  const files = $("file").files;
+  if (!files.length) return setStatus("Selecciona al menos un PDF.", true);
+  const form = new FormData();
+  for (const f of files) form.append("files", f);
+  $("upload").disabled = true;
+  setStatus("Procesando (extracción, embeddings e indexado)...");
+  try {
+    const { results } = await api("/documents", { method: "POST", body: form });
+    setStatus(results.map((r) => `${r.filename}: ${r.status}${r.error ? " (" + r.error.message + ")" : ""}`).join(" | "));
+    $("file").value = "";
+    await loadDocs();
+  } catch (e) { setStatus(e.message, true); }
+  finally { $("upload").disabled = false; }
+});
+
+function sourcesHtml(sources) {
+  if (!sources.length) return "";
+  const items = sources.map((s) => {
+    const pages = s.page_start === s.page_end ? `pág. ${s.page_start}` : `págs. ${s.page_start}-${s.page_end}`;
+    const sim = s.similarity == null ? "léxica" : s.similarity.toFixed(2);
+    return `<details><summary>[${s.ref}] ${esc(s.filename)} · ${pages} · sim ${sim}</summary>${esc(s.snippet)}…</details>`;
+  }).join("");
+  return `<div class="sources"><strong>Fuentes</strong>${items}</div>`;
+}
+
+function addMessage({ question, answer, grounded, sources, meta }) {
+  const chat = $("chat");
+  chat.insertAdjacentHTML("beforeend", `<div class="msg q">${esc(question)}</div>`);
+  const badge = grounded ? '<span class="badge ok">Fundamentada en los documentos</span>'
+                         : '<span class="badge no">Sin información suficiente</span>';
+  const metaLine = meta?.total_ms != null
+    ? `<div class="meta">${esc(meta.model || "sin LLM")} · ${Math.round(meta.total_ms)} ms · tokens ${meta.prompt_tokens || 0}/${meta.completion_tokens || 0}</div>` : "";
+  chat.insertAdjacentHTML("beforeend",
+    `<div class="msg a ${grounded ? "" : "ungrounded"}">${badge}<br>${esc(answer)}${sourcesHtml(sources || [])}${metaLine}</div>`);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function loadHistory() {
+  $("chat").innerHTML = "";
+  try {
+    const { messages } = await api("/history/" + sessionId);
+    messages.forEach(addMessage);
+  } catch (e) { setStatus(e.message, true); }
+}
+
+$("ask").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const question = $("question").value.trim();
+  if (!question) return;
+  $("send").disabled = true;
+  setStatus("Consultando...");
+  try {
+    const data = await api("/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, session_id: sessionId }),
+    });
+    addMessage(data);
+    $("question").value = "";
+    setStatus("");
+  } catch (e) { setStatus(e.message, true); }
+  finally { $("send").disabled = false; $("question").focus(); }
+});
+
+$("newSession").addEventListener("click", () => {
+  sessionId = newSessionId();
+  localStorage.setItem("rag_session", sessionId);
+  $("sid").textContent = sessionId;
+  loadHistory();
+});
+
+loadDocs();
+loadHistory();
+</script>
+</body>
+</html>

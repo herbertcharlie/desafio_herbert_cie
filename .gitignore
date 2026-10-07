@@ -1,0 +1,22 @@
+# Secretos y entorno
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Resultados locales de evaluación
+eval/results/
+
+# IDE / SO
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
