@@ -77,6 +77,7 @@ Todas tienen valor por defecto salvo `OPENAI_API_KEY`. Ver [.env.example](.env.e
 ## Arquitectura
 
 ```
+![Diagrama de arquitectura](docs/arqui_desafio1.drawio.png)
 Navegador ──► nginx :8080 ──/api/──► FastAPI :8000 ──► PostgreSQL + pgvector
                                          │
                                          └──► OpenAI (embeddings + LLM)
