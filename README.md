@@ -76,7 +76,7 @@ Todas tienen valor por defecto salvo `OPENAI_API_KEY`. Ver [.env.example](.env.e
 
 ## Arquitectura
 
-![Diagrama de arquitectura](docs/arqui_desafio1.drawio.png)
+![Diagrama de arquitectura](docs/arqui_rag.png)
 
 ### Arquitectura del backend
 
