@@ -76,11 +76,42 @@ Todas tienen valor por defecto salvo `OPENAI_API_KEY`. Ver [.env.example](.env.e
 
 ## Arquitectura
 
+![Arquitectura general del sistema](docs/arqui_desafio1.drawio.png)
+
+### Arquitectura del backend
+
+El backend sigue una **arquitectura hexagonal (puertos y adaptadores)**: el núcleo (reglas del
+RAG) no conoce FastAPI, OpenAI ni PostgreSQL; son adaptadores que se conectan mediante
+interfaces. Las dependencias apuntan siempre hacia el dominio.
+
+```mermaid
+flowchart LR
+    subgraph IN["Adaptador de entrada"]
+        API["api/<br/>routers · schemas · errores HTTP<br/>(FastAPI + Pydantic)"]
+    end
+
+    subgraph CORE["Núcleo (sin frameworks ni proveedores)"]
+        SVC["services/<br/>casos de uso<br/>RAGService · IngestionService<br/>chunking · prompts"]
+        DOM["domain/<br/>modelos · errores · PUERTOS"]
+    end
+
+    subgraph OUT["Adaptadores de salida"]
+        INFRA["infra/<br/>OpenAI · PostgreSQL+pgvector · pypdf"]
+    end
+
+    CONT["container.py<br/>composition root"]
+
+    API -->|usa| SVC
+    SVC -->|depende de| DOM
+    INFRA -.->|implementa los puertos de| DOM
+    CONT -.->|crea y conecta| INFRA
+    CONT -.->|inyecta en| SVC
+    API -->|obtiene los servicios de| CONT
 ```
-Navegador ──► nginx :8080 ──/api/──► FastAPI :8000 ──► PostgreSQL + pgvector
-                                         │
-                                         └──► OpenAI (embeddings + LLM)
-```
+
+La regla de dependencias se verifica automáticamente (`backend/tests/test_architecture.py`).
+El detalle completo —los puertos, el flujo de `POST /ask` paso a paso y la tabla de patrones de
+diseño utilizados— está en **[docs/arqui_backend.md](docs/arqui_backend.md)**.
 
 ```
 backend/app/
