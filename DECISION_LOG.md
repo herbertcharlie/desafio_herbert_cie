@@ -116,7 +116,7 @@ Segunda serie (ingesta limpia desde el clon de GitHub), mismo evaluador:
 |---|---|
 | 6 | 17/18 en 6 de 6 corridas (q10) |
 | 7 | **inestable** (3 corridas): 18, 17, 17; q01 falla a veces |
-| **8** *(elegida)* | **18/18 en 5 de 5 corridas**, recall 0.95, latencia ≈1.6 s |
+| **8** *(elegida)* | **18/18 en 8 de 8 corridas** (5 en el primer clon; 3 en un segundo clon con `.env` desde `.env.example`), recall 0.95, latencia 1.5–2.3 s |
 
 Elegí **8**: es el menor valor estable. El costo es pequeño (8 fragmentos ≈ 2000 tokens).
 

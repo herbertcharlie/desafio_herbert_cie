@@ -207,7 +207,8 @@ respuesta. El detalle se guarda en `eval/results/` (ignorado por git).
 ### Resultados
 
 Configuración por defecto, `gpt-4o-mini` con `temperature=0`. Medido sobre una **copia limpia
-clonada desde GitHub** (ingesta desde cero), **18/18 en 5 de 5 corridas**:
+clonada desde GitHub** (ingesta desde cero), **18/18 en 8 de 8 corridas** (dos clonaciones
+independientes; la última con un `.env` creado solo desde `.env.example`):
 
 | Métrica | Resultado |
 |---|---|
@@ -215,7 +216,7 @@ clonada desde GitHub** (ingesta desde cero), **18/18 en 5 de 5 corridas**:
 | Fuente correcta (preguntas con respuesta) | 100 % |
 | Cobertura de datos esperados en la respuesta (*keyword recall*) | 0.95 |
 | Rechazo correcto (preguntas sin respuesta) | 100 % (5/5) |
-| Latencia media por pregunta | ≈ 1.6 s |
+| Latencia media por pregunta | ≈ 1.5 – 2.3 s según la corrida |
 
 **Cómo leer estos números con honestidad:**
 - El dataset es pequeño (18 preguntas) y se usó también para ajustar la configuración, por lo
