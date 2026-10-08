@@ -5,10 +5,10 @@ El orden sigue las preguntas del desafío (§14) más la sección de concurrenci
 
 ## 1. ¿Por qué ese LLM y esos embeddings?
 
-- **Generación: `gpt-4o-mini`** (configurable con `OPENAI_CHAT_MODEL`). Es el equilibrio
-  costo/latencia/calidad adecuado para un RAG extractivo: la tarea es *leer fragmentos y
-  responder con citas*, no razonar en profundidad. Soporta `response_format=json_object`, que
-  uso para obtener una salida estructurada (`sufficient`, `answer`, `citations`).
+- **Generación: 'gpt-4o-mini' (configurable con 'OPENAI_CHAT_MODEL'). Es el equilibrio
+  costo/latencia/calidad adecuado para un RAG extractivo: la tarea es "leer fragmentos y
+  responder con citas", no razonar en profundidad. Soporta 'response_format=json_object', que
+  uso para obtener una salida estructurada ('sufficient', 'answer', 'citations').
 - **Embeddings: `text-embedding-3-small`** (1536 dim). Es multilingüe y rinde bien en español,
   y evita desplegar un modelo local (PyTorch/ONNX engordaría la imagen Docker y ralentizaría
   el arranque del evaluador).
@@ -37,7 +37,7 @@ Chunks de **~1000 caracteres (~250 tokens) con solape de 150**, construidos por 
   búsqueda léxica no habría encontrado "definición".
 - **Por qué ese tamaño:** chunks pequeños dan embeddings más precisos y fuentes más
   verificables; demasiado pequeños pierden contexto, demasiado grandes diluyen la señal y
-  encarecen el prompt. Con `CONTEXT_TOP_K=6` el contexto ronda los 6000 caracteres (~1500
+  encarecen el prompt. Con `CONTEXT_TOP_K=8` el contexto ronda los 8000 caracteres (~2000
   tokens). Tamaño y solape son variables de entorno para poder barrerlos con el evaluador.
 - *Alternativas descartadas:* ventana fija de caracteres (corta frases); chunking semántico por
   embeddings (más costoso y poco aporte con documentos cortos y bien estructurados);
@@ -69,7 +69,7 @@ Chunks de **~1000 caracteres (~250 tokens) con solape de 150**, construidos por 
    normalizar puntuaciones de escalas distintas (coseno vs. rank léxico).
 4. **Híbrido anclado en el vectorial** (`select_context`): los 2 mejores resultados vectoriales
    entran siempre al contexto (`VECTOR_ANCHOR=2`); el resto de plazas se rellena con el orden
-   RRF hasta **6 fragmentos** (`CONTEXT_TOP_K=6`) que se envían al LLM.
+   RRF hasta **8 fragmentos** (`CONTEXT_TOP_K=8`) que se envían al LLM.
 
 Por qué híbrido: el vectorial captura paráfrasis; el léxico rescata términos exactos que los
 embeddings diluyen ("WIP", "Definición de Terminado", "Sprint Backlog").
@@ -87,34 +87,62 @@ contexto sin la respuesta y rechazó: se comportó bien, la falla era de recuper
 Corrección: el ancla vectorial (con prueba de regresión
 `test_noisy_lexical_hits_cannot_push_top_vector_results_out_of_context`). El ancla reservaba
 plazas y sacaba de contexto un fragmento útil para otra pregunta (q12), lo que se resolvió
-ampliando el contexto de 5 a 6.
+ampliando el contexto (hoy 8; ver ablation).
 
 ### Ablation (18 preguntas, `gpt-4o-mini`, `temperature=0`)
+
+Primera serie (primera ingesta de los PDFs):
 
 | Configuración | Aprobadas | Falla |
 |---|---|---|
 | A. Solo vectorial, top-5 | 16/18 | q12, q13 (recall: faltan fragmentos de otro documento) |
 | B. Híbrido RRF, top-5 | 17/18 | q02 (defecto descrito arriba) |
-| C. Híbrido anclado (2), top-5 | 16/18 | q10, q12 (el contexto de 5 es justo y el ancla ocupa plazas) |
-| D. **Híbrido anclado (2), top-6** *(elegida)* | **18/18** | — |
-| E. Anclado (2), top-7 · F. Anclado (1), top-7 · G. Sin ancla, top-7 | 18/18 | — |
+| C. Híbrido anclado (2), top-5 | 16/18 | q10, q12 (contexto justo y el ancla ocupa plazas) |
+| D. Híbrido anclado (2), top-6 | 18/18 | — |
+| E/F/G. top-7 (ancla 2 / 1 / sin ancla) | 18/18 | — |
 
-La configuración D se repitió **3 veces con resultado idéntico** (18/18, 100 % de aciertos de
-fuente, 100 % de rechazos correctos, latencia media ≈1.8 s).
+**Esa conclusión (top-6) no resistió la verificación.** Al clonar el repositorio desde GitHub y
+volver a ingestar los PDFs desde cero, con *exactamente el mismo código y configuración*,
+D bajó a **17/18 de forma estable (6 de 6 corridas)**: fallaba q10 ("qué hace el Scrum Master
+por el equipo, el PO y la organización"). Causa: los embeddings de OpenAI no son bit a bit
+idénticos entre ingestas y el ranking de fragmentos casi empatados cambia ligeramente; el
+fragmento sobre el PO estaba en el top-10 vectorial pero quedaba en los puestos 7–10, fuera del
+contexto de 6. Es un límite de recall para preguntas de tres partes, y el modelo respondió con
+lo que tenía (incluso mezcló un punto del PO).
 
-**Salvedad honesta:** con 18 preguntas, y con el mismo conjunto usado para ajustar, no puedo
-distinguir D de E, F y G, ni garantizar generalización (no hay un conjunto reservado). Elegí D
-por ser el contexto más pequeño que logra 18/18 y porque conserva el ancla, que corrige un
-modo de fallo demostrado. El factor dominante resultó ser el tamaño del contexto, no el
-híbrido en sí; para este corpus, tan pequeño, el aporte del léxico es modesto. En un corpus
-mayor con terminología específica espero que pese más.
+Segunda serie (ingesta limpia desde el clon de GitHub), mismo evaluador:
+
+| `CONTEXT_TOP_K` | Resultado |
+|---|---|
+| 6 | 17/18 en 6 de 6 corridas (q10) |
+| 7 | **inestable** (3 corridas): 18, 17, 17; q01 falla a veces |
+| **8** *(elegida)* | **18/18 en 5 de 5 corridas**, recall 0.95, latencia ≈1.6 s |
+
+Elegí **8**: es el menor valor estable. El costo es pequeño (8 fragmentos ≈ 2000 tokens).
+
+**Correcciones al dataset durante la verificación:** q06 ("compromiso de cada artefacto")
+fallaba porque la respuesta —correcta— citaba la pág. 15 ("Cambios 2017→2020"), que también
+enuncia los tres compromisos y no estaba en la etiqueta de oro (págs. 11–13). Verifiqué el
+texto del PDF y añadí la pág. 15 (queda anotado en el propio `dataset.json`). Fue un error de
+etiquetado mío, no de la respuesta.
+
+**Salvedades honestas:**
+- Con 18 preguntas, y con el mismo conjunto usado para ajustar, **no puedo garantizar
+  generalización** (no hay conjunto reservado) ni distinguir finamente entre configuraciones
+  cercanas (la diferencia entre 7 y 8 se apoya en pocas corridas).
+- Lo anterior muestra que **estos resultados son sensibles a la ingesta**: una re-ingesta puede
+  mover fragmentos casi empatados. En producción convendría fijar la versión del índice, medir
+  con un conjunto mayor y reservar preguntas de validación.
+- El factor dominante resultó ser el tamaño del contexto más que el híbrido; en este corpus
+  tan pequeño el aporte del léxico es modesto. El ancla se mantiene porque corrige un modo de
+  fallo demostrado (q02) y tiene prueba de regresión.
 
 ## 5. ¿Cómo intenté reducir alucinaciones? / 6. ¿Cómo controlé el grounding?
 
 Defensa en capas; ninguna es perfecta, juntas son razonables:
 
 1. **Puerta de relevancia antes del LLM.** Si la mejor similitud coseno vectorial es menor que
-   `MIN_SIMILARITY` (0.30), **no se llama al LLM** y se responde con rechazo. Ahorra costo y
+   'MIN_SIMILARITY' (0.30), **no se llama al LLM** y se responde con rechazo. Ahorra costo y
    elimina la oportunidad de inventar.
 
    **Calibración con datos y lo que revelan** (similitud máxima por pregunta):
@@ -150,10 +178,10 @@ latencia; ver § "Lo que no implementé".
 
 ## 7. ¿Cómo se obtienen y muestran las fuentes?
 
-- Cada chunk guarda `document_id`, `filename`, `page_start`, `page_end` y un `id` propio.
-- El contexto al LLM va numerado: `[1] (Documento: X, pág. N)`. El modelo cita `[n]`.
+- Cada chunk guarda 'document_id', 'filename', 'page_start', 'page_end' y un 'id' propio.
+- El contexto al LLM va numerado: '[1] (Documento: X, pág. N)'. El modelo cita '[n]'.
 - La API devuelve **solo las fuentes realmente citadas y validadas**, cada una con `ref`
-  (el `[n]` del texto), `chunk_id`, documento, páginas, similitud y un `snippet` de 400
+  (el '[n]' del texto), 'chunk_id', documento, páginas, similitud y un 'snippet' de 400
   caracteres para verificación visual. La UI las muestra desplegables.
 - Las páginas son las del **PDF físico** (el visor las numera igual), que puede diferir de la
   numeración impresa del documento.
@@ -161,7 +189,7 @@ latencia; ver § "Lo que no implementé".
 
 ## 8. ¿Qué ocurre si el documento no contiene la respuesta?
 
-Dos rutas, ambas devuelven HTTP 200 con `grounded=false`, `sources=[]` y el mensaje *"No encontré
+Dos rutas, ambas devuelven HTTP 200 con 'grounded=false', 'sources=[]' y el mensaje *"No encontré
 información suficiente en los documentos cargados…"*:
 
 - **Rechazo temprano** (similitud < umbral, o base vacía): sin llamada al LLM.

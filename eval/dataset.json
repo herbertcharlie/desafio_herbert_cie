@@ -47,7 +47,8 @@
       "type": "direct",
       "question": "¿Qué compromiso tiene cada artefacto de Scrum?",
       "expected_answer": "Product Backlog: Objetivo del Producto; Sprint Backlog: Objetivo del Sprint; Increment: Definición de Terminado.",
-      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [11, 12, 13]}],
+      "expected_sources": [{"document": "scrum-guide-2020-es", "pages": [11, 12, 13, 15]}],
+      "notes": "La pág. 15 (cambios 2017→2020) también enuncia los tres compromisos; se añadió tras comprobarlo en el PDF, porque una respuesta que la cita es igualmente correcta.",
       "keywords": ["Objetivo del Producto", "Objetivo del Sprint", "Definición de Terminado"]
     },
     {

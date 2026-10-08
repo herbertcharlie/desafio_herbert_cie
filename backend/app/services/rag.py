@@ -31,7 +31,7 @@ SNIPPET_CHARS = 400
 @dataclass(frozen=True)
 class RAGConfig:
     candidates: int = 10
-    context_top_k: int = 6
+    context_top_k: int = 8
     min_similarity: float = 0.30
     hybrid: bool = True
     vector_anchor: int = 2  # mejores resultados vectoriales que siempre entran al contexto

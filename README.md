@@ -66,7 +66,7 @@ Todas tienen valor por defecto salvo `OPENAI_API_KEY`. Ver [.env.example](.env.e
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Modelo de embeddings (1536 dim; si cambias la dimensión, ajusta `vector(N)` en `db/init/001_schema.sql` y `EMBEDDING_DIM`) |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `150` | Caracteres por chunk y solape |
 | `RETRIEVAL_CANDIDATES` | `10` | Candidatos por método (vectorial y léxico) |
-| `CONTEXT_TOP_K` | `6` | Fragmentos enviados al LLM |
+| `CONTEXT_TOP_K` | `8` | Fragmentos enviados al LLM |
 | `HYBRID_SEARCH` | `true` | Combina búsqueda vectorial y léxica (RRF) |
 | `VECTOR_ANCHOR` | `2` | Mejores resultados vectoriales que siempre entran al contexto (ver DECISION_LOG §4) |
 | `MIN_SIMILARITY` | `0.30` | Umbral de similitud coseno; por debajo no se llama al LLM |
@@ -106,7 +106,7 @@ La lógica de negocio depende solo de interfaces (`Embedder`, `LLMProvider`, `Kn
 y chunks en una transacción. El mismo archivo (SHA-256) no se procesa dos veces.
 
 **Consulta** (`POST /ask`): embedding de la pregunta → top-10 vectorial + top-10 léxico →
-fusión RRF anclada en el vectorial → 6 fragmentos → **puerta de relevancia** (si la similitud máxima < umbral, rechazo sin
+fusión RRF anclada en el vectorial → 8 fragmentos → **puerta de relevancia** (si la similitud máxima < umbral, rechazo sin
 llamar al LLM) → LLM con salida JSON `{sufficient, answer, citations}` → **verificación de
 las citas contra el contexto enviado** → respuesta con fuentes. Se guarda en el historial.
 
@@ -206,7 +206,8 @@ respuesta. El detalle se guarda en `eval/results/` (ignorado por git).
 
 ### Resultados
 
-Configuración por defecto, `gpt-4o-mini` con `temperature=0`, **3 corridas idénticas**:
+Configuración por defecto, `gpt-4o-mini` con `temperature=0`. Medido sobre una **copia limpia
+clonada desde GitHub** (ingesta desde cero), **18/18 en 5 de 5 corridas**:
 
 | Métrica | Resultado |
 |---|---|
@@ -214,15 +215,18 @@ Configuración por defecto, `gpt-4o-mini` con `temperature=0`, **3 corridas idé
 | Fuente correcta (preguntas con respuesta) | 100 % |
 | Cobertura de datos esperados en la respuesta (*keyword recall*) | 0.95 |
 | Rechazo correcto (preguntas sin respuesta) | 100 % (5/5) |
-| Latencia media por pregunta | ≈ 1.8 s |
+| Latencia media por pregunta | ≈ 1.6 s |
 
-**Cómo leer estos números con honestidad:** el dataset es pequeño (18 preguntas) y se usó
-también para ajustar la configuración, por lo que no demuestra generalización; sí demuestra
-que el pipeline funciona de extremo a extremo y que cada decisión se midió. La comparación de
-configuraciones (solo vectorial vs. híbrido, con y sin ancla, distintos tamaños de contexto),
-el defecto de recuperación que se encontró y corrigió, y la calibración del umbral de
-similitud están en [DECISION_LOG.md](DECISION_LOG.md) §4 y §5. El *keyword recall* es una
-métrica burda (busca palabras clave, no evalúa la calidad de la redacción).
+**Cómo leer estos números con honestidad:**
+- El dataset es pequeño (18 preguntas) y se usó también para ajustar la configuración, por lo
+  que **no demuestra generalización**; sí demuestra que el pipeline funciona de extremo a
+  extremo y que las decisiones se midieron.
+- Los resultados **dependen de la ingesta**: con una configuración anterior (`top_k=6`) se
+  obtuvo 18/18, pero al re-ingestar desde cero bajó a 17/18 de forma estable. Eso llevó a
+  subir el contexto a 8 fragmentos. El episodio completo (ablation, defecto de recuperación,
+  corrección de una etiqueta del dataset y calibración del umbral) está en
+  [DECISION_LOG.md](DECISION_LOG.md) §4 y §5.
+- El *keyword recall* es una métrica burda: busca palabras clave, no evalúa la redacción.
 
 ## Solución de problemas
 
